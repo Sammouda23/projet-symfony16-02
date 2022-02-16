@@ -1,44 +1,27 @@
-image: jakzal/phpqa:php7.4
-
-before_script:
-  - composer install 
-  
-cache:
-  paths:
-     - vendor/
-        
-stages:
-  - SecurityChecker 
-  - CodingStandards
-  - UnitTestes
-  
-Security-checker:
- stage: SecurityChecker
- script:
-   - security-checker security:checker composer.lock
- allow_failure:   false
-
-phpcs:
- stage: CodingStandards
- script:
-   - phpcs -v --standard=PSR12 ----ignore=./src/Kernel.php ./src
- allow_failure: false  
-
-phpstan:
- stage: CodingStandards
- script:
-   - phpstan analyse  ./src
- allow_failure: false  
-
-twig-lint:
- stage: CodingStandards
- script:
-   - twig-lint lint ./templates
- allow_failure: false 
-      
-phpunit:
- stage: UnitTestes
- script:
-   - php bin/phpunit
- allow_failure: false  
-        
+pipeline {
+  agent any
+  stages {
+    stage('Build') {
+      agent any
+      steps {
+        sh 'docker-compose up -d'
+        sh 'docker exec app_name composer install'
+      }
+    }    
+    stage('PHP CS Fixer') {
+      steps {
+        sh 'php-cs-fixer fix --dry-run --no-interaction --diff -vvv src/'
+      }
+    }
+    stage('Test') {
+      steps {
+        sh 'docker exec app_name php ./bin/phpunit --coverage-clover=\'reports/coverage/coverage.xml\' --coverage-html=\'reports/coverage\''
+      }
+    }
+    stage('Coverage') {
+      steps {
+        step([$class: 'CloverPublisher'undefined cloverReportDir: '/reports/coverage'undefined cloverReportFileName: 'coverage.xml'])
+      }
+    }
+  }  
+}
